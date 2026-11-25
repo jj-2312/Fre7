@@ -1,5 +1,6 @@
 -- ==============================================================================
--- YAHIKO INFO SPAM ONLY (semua fitur lain dihapus)
+-- YAHIKO INFO SPAM ONLY
+-- Logika tampilan diambil dari yahiko.lua VIP (Notify + Msg.Show + FastTick)
 -- ==============================================================================
 
 local CONFIG = {
@@ -13,10 +14,10 @@ local CONFIG = {
 
   SPAM_INTERVAL = 5.0,
 
-  SHOW_LOG     = true,   -- print ke console
-  SHOW_SCREEN  = true,   -- teks di layar
-  SHOW_NOTIFY  = true,   -- LexusNotify
-  SHOW_POPUP   = true,   -- popup box
+  SHOW_LOG     = true,
+  SHOW_SCREEN  = true,
+  SHOW_NOTIFY  = true,
+  SHOW_POPUP   = true,
 
   BTN_OK    = "TELEGRAM",
   BTN_CLOSE = "WHATSAPP",
@@ -25,162 +26,139 @@ local CONFIG = {
   SCALE = 1.3,
 }
 
+-- -------------------- Notify (sama seperti VIP lama) --------------------
+local function Notify(msg)
+  local s = tostring(msg)
+  pcall(function()
+    if _G.LexusNotify then _G.LexusNotify(s) end
+  end)
+  pcall(function()
+    local sh = import("ScriptHelperClient")
+    if sh and sh.AddOnScreenDebugMessage then
+      local col = CONFIG.COLOR or { R = 1, G = 0.15, B = 0.15, A = 1 }
+      local sc = tonumber(CONFIG.SCALE) or 1.3
+      sh.AddOnScreenDebugMessage(s, -1, 4.5, col, { X = sc, Y = sc })
+    end
+  end)
+  pcall(function() print(s) end)
+end
+
 local function FullMessage()
-  return tostring(CONFIG.TITLE) .. "\n" .. tostring(CONFIG.MESSAGE) .. tostring(CONFIG.TELEGRAM_USER or "")
+  return tostring(CONFIG.TITLE)
+    .. "\n"
+    .. tostring(CONFIG.MESSAGE or "")
+    .. tostring(CONFIG.TELEGRAM_USER or "")
 end
 
 local function OpenURL(url)
   if type(url) ~= "string" or #url < 8 then return end
   pcall(function()
-    if _G.Client and type(Client.OpenURL) == "function" then
-      Client.OpenURL(url)
+    local Web = require("client.slua.logic.url.logic_webview_sdk")
+    if Web and Web.OpenURL then
+      Web:OpenURL(url)
       return
     end
   end)
   pcall(function()
-    local K = import("KismetSystemLibrary")
-    if K then
-      if type(K.LaunchURL) == "function" then K.LaunchURL(url)
-      elseif type(K.OpenURL) == "function" then K.OpenURL(url) end
-    end
-  end)
-  pcall(function()
-    if _G.Client and type(Client.LaunchURL) == "function" then
-      Client.LaunchURL(url)
+    if _G.Client and type(Client.OpenURL) == "function" then
+      Client.OpenURL(url)
     end
   end)
 end
 
-local function ShowLog(msg)
-  if not CONFIG.SHOW_LOG then return end
-  pcall(function() print(msg) end)
-end
-
-local function ShowScreen(msg)
-  if not CONFIG.SHOW_SCREEN then return end
-  pcall(function()
-    local sh = import("ScriptHelperClient")
-    if sh and sh.AddOnScreenDebugMessage then
-      local col = CONFIG.COLOR or { R = 1, G = 0.15, B = 0.15, A = 1 }
-      local sc = CONFIG.SCALE or 1.3
-      sh.AddOnScreenDebugMessage(msg, -1, 4.5, col, { X = sc, Y = sc })
-    end
-  end)
-end
-
-local function ShowNotify(msg)
-  if not CONFIG.SHOW_NOTIFY then return end
-  pcall(function()
-    if _G.LexusNotify then
-      _G.LexusNotify(msg)
-    end
-  end)
-  pcall(function()
-    if type(ShowNotice) == "function" then
-      ShowNotice(msg)
-    end
-  end)
-end
-
-local function ShowPopup(msg)
+-- -------------------- Popup (Msg.Show seperti ShowLexusVIPMenu) --------------------
+local function ShowPopup()
   if not CONFIG.SHOW_POPUP then return end
   pcall(function()
     local Msg = require("client.slua.logic.common.logic_common_msg_box")
-    if not Msg then return end
+    if not Msg or not Msg.Show then return end
 
     local title = tostring(CONFIG.TITLE or "INFO")
-    local body = tostring(CONFIG.MESSAGE or "") .. tostring(CONFIG.TELEGRAM_USER or "")
+    local content = tostring(CONFIG.MESSAGE or "") .. tostring(CONFIG.TELEGRAM_USER or "")
+    local btn1 = tostring(CONFIG.BTN_OK or "TELEGRAM")
+    local btn2 = tostring(CONFIG.BTN_CLOSE or "WHATSAPP")
 
-    local function onOk()
-      OpenURL(CONFIG.TELEGRAM_URL)
-    end
-    local function onClose()
-      OpenURL(CONFIG.WHATSAPP_URL)
-    end
-
-    if Msg.ShowMsgBox then
-      pcall(function()
-        Msg.ShowMsgBox(title, body, CONFIG.BTN_OK, CONFIG.BTN_CLOSE, onOk, onClose)
-      end)
-      pcall(function()
-        Msg.ShowMsgBox(title, body, onOk, onClose, CONFIG.BTN_OK, CONFIG.BTN_CLOSE)
-      end)
-    elseif Msg.ShowMsgBoxByData then
-      pcall(function()
-        Msg.ShowMsgBoxByData({
-          title = title,
-          msg = body,
-          styleType = 2,
-          okText = CONFIG.BTN_OK,
-          cancelText = CONFIG.BTN_CLOSE,
-          okCallback = onOk,
-          cancelCallback = onClose,
-        })
-      end)
-    end
+    -- Signature sama persis dengan VIP lama:
+    -- Msg.Show(style, title, content, okCb, cancelCb, btnOk, btnCancel)
+    Msg.Show(
+      1,
+      title,
+      content,
+      function()
+        OpenURL(CONFIG.TELEGRAM_URL)
+      end,
+      function()
+        OpenURL(CONFIG.WHATSAPP_URL)
+      end,
+      btn1,
+      btn2
+    )
   end)
 end
 
 local function BroadcastOnce()
   local msg = FullMessage()
-  ShowLog(msg)
-  ShowScreen(msg)
-  ShowNotify(msg)
-  ShowPopup(msg)
+  if CONFIG.SHOW_LOG or CONFIG.SHOW_SCREEN or CONFIG.SHOW_NOTIFY then
+    -- Notify = log + on-screen + LexusNotify (sama VIP)
+    if CONFIG.SHOW_NOTIFY or CONFIG.SHOW_SCREEN or CONFIG.SHOW_LOG then
+      Notify(msg)
+    end
+  end
+  ShowPopup()
 end
 
-local function StartSpamLoop()
-  if _G.__YAHIKO_INFO_SPAM_STARTED then return end
-  _G.__YAHIKO_INFO_SPAM_STARTED = true
+-- -------------------- Loop timer (pola FastTick VIP) --------------------
+_G.__YAHIKO_SPAM_TOKEN = (_G.__YAHIKO_SPAM_TOKEN or 0) + 1
+local myToken = _G.__YAHIKO_SPAM_TOKEN
+local lastBroadcast = 0
+local interval = tonumber(CONFIG.SPAM_INTERVAL) or 5.0
+if interval < 1 then interval = 1 end
 
-  local interval = tonumber(CONFIG.SPAM_INTERVAL) or 5.0
-  if interval < 1 then interval = 1 end
+local function SpamTick()
+  if myToken ~= _G.__YAHIKO_SPAM_TOKEN then return end
 
-  pcall(function()
-    local ticker = require("common.time_ticker")
-    if ticker and ticker.AddTimerOnce then
-      ticker.AddTimerOnce(1.0, function()
-        pcall(BroadcastOnce)
-      end)
-      if ticker.AddTimerLoop then
-        ticker.AddTimerLoop(0, function()
-          pcall(BroadcastOnce)
-        end, -1, interval)
-      else
-        local function schedule()
-          ticker.AddTimerOnce(interval, function()
-            pcall(BroadcastOnce)
-            schedule()
-          end)
-        end
-        schedule()
+  local now = 0
+  pcall(function() now = os.clock() end)
+  if now <= 0 then
+    pcall(function()
+      local UGameplayStatics = import("GameplayStatics")
+      if UGameplayStatics and CGameWorld then
+        now = UGameplayStatics.GetRealTimeSeconds(CGameWorld)
       end
-      return
-    end
-  end)
+    end)
+  end
 
-  pcall(function()
-    local ticker = package.loaded["common.time_ticker"]
-    if not ticker then return end
-    if ticker.AddTimerOnce then
-      ticker.AddTimerOnce(2.0, function()
-        if not _G.__YAHIKO_INFO_SPAM_LOOP then
-          _G.__YAHIKO_INFO_SPAM_LOOP = true
-          if ticker.AddTimerLoop then
-            ticker.AddTimerLoop(0, function()
-              pcall(BroadcastOnce)
-            end, -1, interval)
-          end
-        end
-      end)
-    end
-  end)
+  if lastBroadcast == 0 or (now - lastBroadcast) >= interval then
+    lastBroadcast = now > 0 and now or (lastBroadcast + interval)
+    pcall(BroadcastOnce)
+  end
+
+  local okTicker, ticker = pcall(require, "common.time_ticker")
+  if okTicker and ticker and ticker.AddTimerOnce then
+    -- sama seperti FastTick VIP: jadwalkan lagi
+    ticker.AddTimerOnce(0.25, SpamTick)
+  end
 end
 
-StartSpamLoop()
+-- Boot
+pcall(function()
+  Notify(FullMessage())
+end)
+pcall(function()
+  ShowPopup()
+end)
+pcall(SpamTick)
 
-return {
-  CONFIG = CONFIG,
-  BroadcastOnce = BroadcastOnce,
-  StartSpamLoop = StartSpamLoop,
-}
+-- Backup: pastikan loop hidup lagi setelah 2 detik jika ticker sempat gagal
+pcall(function()
+  local okTicker, ticker = pcall(require, "common.time_ticker")
+  if okTicker and ticker and ticker.AddTimerOnce then
+    ticker.AddTimerOnce(2.0, function()
+      if myToken == _G.__YAHIKO_SPAM_TOKEN then
+        pcall(SpamTick)
+      end
+    end)
+  end
+end)
+
+return true
